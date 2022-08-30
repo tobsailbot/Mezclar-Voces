@@ -45,7 +45,7 @@ classdef PluginMezclaVoces < audioPlugin
         end
 
         
-        function plugin = PluginMezclaVoces % Creación del objeto EQ
+        function plugin = PluginMezclaVoces(varargin) % Creación del objeto EQ
             plugin.EQ = multibandParametricEQ(...
                          'NumEQBands',1, ...
                          'Frequencies',410, ...
@@ -75,6 +75,7 @@ classdef PluginMezclaVoces < audioPlugin
                          'AttackTime',3e-3,...
                          'ReleaseTime',20e-3,...
                          'MakeUpGainMode','Property');
+                    
         end
 
 

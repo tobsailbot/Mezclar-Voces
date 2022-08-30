@@ -1,11 +1,7 @@
 classdef Doubler < audioPlugin & matlab.System
 
     
-    properties (DiscreteState)
-        Phase1State;
-        Phase2State;
-    end
-    
+
     properties (Nontunable, Access = protected)
         pMaxDelay = 0.03;
         Overlap = 0.3;
@@ -17,6 +13,8 @@ classdef Doubler < audioPlugin & matlab.System
         pShifter;
         pPhaseStep;
         pFaderGain;
+        Phase1State;
+        Phase2State;
     end
     
 
