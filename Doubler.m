@@ -22,8 +22,8 @@ classdef Doubler < audioPlugin & matlab.System
 
 
     methods
-        function obj = Doubler(varargin)
-            setProperties(obj, nargin, varargin{:});
+        function plugin = Doubler(varargin)
+            setProperties(plugin, nargin, varargin{:});
         end
     end
     
@@ -32,35 +32,35 @@ classdef Doubler < audioPlugin & matlab.System
     methods (Access = protected)
         
 
-        function setupImpl(obj,~)
+        function setupImpl(p,~)
             
             % Assume longest delay is 0.03ms and max Fs is 192 kHz
-            pMaxDelaySamps = 192e3 * obj.pMaxDelay;
+            pMaxDelaySamps = 192e3 * p.pMaxDelay;
             
-            obj.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,...
+            p.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,...
                 'InterpolationMethod','farrow');
             
-            obj.Phase1State = 0;
-            obj.Phase2State = (1 - obj.Overlap);
+            p.Phase1State = 0;
+            p.Phase2State = (1 - p.Overlap);
             
-            tuneParameters(obj)
+            tuneParameters(p)
         end
         
 
-        function tuneParameters(obj)
+        function tuneParameters(p)
                         
-            obj.pRate = (1 - 2^((-0.5)/12)) / obj.pMaxDelay;  % Valor de pitch shift !!!-----
-            obj.pPhaseStep = obj.pRate / getSampleRate(obj); % phase step
-            obj.pFaderGain = 1 / obj.Overlap; % gain for overlap fader
+            p.pRate = (1 - 2^((-5)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
+            p.pPhaseStep = p.pRate / getSampleRate(p); % phase step
+            p.pFaderGain = 1 / p.Overlap; % gain for overlap fader
         end
         
 
-        function processTunedPropertiesImpl(obj)
-            tuneParameters(obj);
+        function processTunedPropertiesImpl(p)
+            tuneParameters(p);
         end
         
 
-        function [y,delays,gains] = stepImpl(obj,u)
+        function [y,delays,gains] = stepImpl(p,u)
 
             blockSize = size(u,1); % Number of samples in the input
             
@@ -70,19 +70,19 @@ classdef Doubler < audioPlugin & matlab.System
             delays1 = zeros(blockSize,1); % Delay for first delay line
             delays2 = zeros(blockSize,1);
             
-            if(obj.pRate == 0) 
+            if(p.pRate == 0) 
                 y = u;
                 delays = [delays1,delays2];
                 gains  = [gains1,gains2];
                 return;
             end
             
-            ph1   = obj.Phase1State;
-            ph2   = obj.Phase2State;
-            pstep = obj.pPhaseStep;
-            ovrlp = obj.Overlap;
-            sd    =  obj.pSampsDelay;
-            fgain = obj.pFaderGain;
+            ph1   = p.Phase1State;
+            ph2   = p.Phase2State;
+            pstep = p.pPhaseStep;
+            ovrlp = p.Overlap;
+            sd    =  p.pSampsDelay;
+            fgain = p.pFaderGain;
             
             for i = 1:blockSize
                 
@@ -132,14 +132,14 @@ classdef Doubler < audioPlugin & matlab.System
                 end
             end
             
-            obj.Phase1State = ph1;
-            obj.Phase2State = ph2;
+            p.Phase1State = ph1;
+            p.Phase2State = ph2;
             
             % Get delayed output
             dly = zeros(blockSize,1,2);
             dly(:,:,1) = delays1;
             dly(:,:,2) = delays2;
-            delayedOut = obj.pShifter(u,dly);
+            delayedOut = p.pShifter(u,dly);
    
             for i = 1:size(u,2)
                 delayedOut(:,i,1) = delayedOut(:,i,1) .* gains1;
@@ -148,21 +148,21 @@ classdef Doubler < audioPlugin & matlab.System
             
             % Sum to create output
             y = sum(delayedOut,3);
-            delays = [delays1,delays2] / getSampleRate(obj);
+            delays = [delays1,delays2] / getSampleRate(p);
             gains  = [gains1,gains2];
             
         end
         
 
-        function resetImpl(obj)
-            obj.Phase1State = 0;
-            obj.Phase2State = (1 - obj.Overlap);
-            reset(obj.pShifter);
+        function resetImpl(p)
+            p.Phase1State = 0;
+            p.Phase2State = (1 - p.Overlap);
+            reset(p.pShifter);
             
-            obj.pSampsDelay = round(obj.pMaxDelay * getSampleRate(obj));
+            p.pSampsDelay = round(p.pMaxDelay * getSampleRate(p));
 
-            tuneParameters(obj);
+            tuneParameters(p);
         end
-        
+
     end
 end
