@@ -1,12 +1,10 @@
 classdef Doubler < audioPlugin & matlab.System
 
-    
-
-    properties (Nontunable, Access = protected)
+   properties (Nontunable, Access = protected)
         pMaxDelay = 0.03;
         Overlap = 0.3;
     end
-    
+
     properties (Access = private)
         pRate;
         pSampsDelay;
@@ -17,47 +15,13 @@ classdef Doubler < audioPlugin & matlab.System
         Phase2State;
     end
     
-
-
-    methods
-        function plugin = Doubler(varargin)
-            setProperties(plugin, nargin, varargin{:});
-        end
-    end
     
-
 
     methods (Access = protected)
         
-
-        function setupImpl(p,~)
-            
-            % Assume longest delay is 0.03ms and max Fs is 192 kHz
-            pMaxDelaySamps = 192e3 * p.pMaxDelay;
-            
-            p.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,...
-                'InterpolationMethod','farrow');
-            
-            p.Phase1State = 0;
-            p.Phase2State = (1 - p.Overlap);
-            
-            tuneParameters(p)
-        end
         
 
-        function tuneParameters(p)
-                        
-            p.pRate = (1 - 2^((-5)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
-            p.pPhaseStep = p.pRate / getSampleRate(p); % phase step
-            p.pFaderGain = 1 / p.Overlap; % gain for overlap fader
-        end
-        
-
-        function processTunedPropertiesImpl(p)
-            tuneParameters(p);
-        end
-        
-
+        % esta funcion reemplaza process
         function [y,delays,gains] = stepImpl(p,u)
 
             blockSize = size(u,1); % Number of samples in the input
@@ -148,18 +112,30 @@ classdef Doubler < audioPlugin & matlab.System
             y = sum(delayedOut,3);
             delays = [delays1,delays2] / getSampleRate(p);
             gains  = [gains1,gains2];
-            
+            %y = u;
+            % u = input  -  u es la señal de entrada
         end
         
 
+
+
+        % esta funcion reemplaza reset
         function resetImpl(p)
-            p.Phase1State = 0;
-            p.Phase2State = (1 - p.Overlap);
-            reset(p.pShifter);
             
             p.pSampsDelay = round(p.pMaxDelay * getSampleRate(p));
 
-            tuneParameters(p);
+            pMaxDelaySamps = 192e3 * p.pMaxDelay;
+            
+            p.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,...
+                'InterpolationMethod','farrow');
+            
+            p.Phase1State = 0;
+            p.Phase2State = (1 - p.Overlap);
+
+            p.pRate = (1 - 2^((-5)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
+            p.pPhaseStep = p.pRate / getSampleRate(p); % phase step
+            p.pFaderGain = 1 / p.Overlap; % gain for overlap fader
+
         end
 
     end
