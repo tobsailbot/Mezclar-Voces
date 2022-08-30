@@ -1,11 +1,22 @@
 classdef Doubler < audioPlugin & matlab.System
 
+    properties
+        Value = 0;
+    end
+
    properties (Nontunable, Access = protected)
         pMaxDelay = 0.03;
         Overlap = 0.3;
     end
 
     properties (Access = private)
+        EQ;
+        Compressor;
+        Crossover;
+        Desser;
+        Wet;
+        lockPhase = true;
+
         pRate;
         pSampsDelay;
         pShifter;
@@ -14,13 +25,55 @@ classdef Doubler < audioPlugin & matlab.System
         Phase1State;
         Phase2State;
     end
+
+    properties(Constant)
+        PluginInterface = ... % Interfaz gráfica
+        audioPluginInterface( ...
+        ...
+        audioPluginParameter('Value', ...
+        'DisplayName','Dry / Wet', ...
+        'Mapping',{'lin', 0, 1}))
+    end
+    
+    methods
+            function plugin = Doubler % Creación del objeto EQ
+                plugin.EQ = multibandParametricEQ(...
+                             'NumEQBands',1, ...
+                             'Frequencies',410, ...
+                             'QualityFactors',0.66, ...
+                             'PeakGains',-2.4, ...
+                             ...
+                             'HasHighpassFilter',true,...
+                             'HighpassCutoff',95,...
+                             'HighpassSlope',10,...
+                             ...
+                             'HasHighShelfFilter',true, ...
+                             'HighShelfCutoff',8800, ... &8800
+                             'HighShelfSlope',0.45, ...
+                             'HighShelfGain',5); % 3.2
+
+                plugin.Compressor = compressor(-22,8,... % tresh, ratio
+                             'AttackTime',25e-3,...
+                             'ReleaseTime',200e-3,...
+                             'MakeUpGainMode','Property');
+
+                plugin.Crossover = crossoverFilter( ...
+                            'NumCrossovers',2, ...
+                            'CrossoverFrequencies',[150,5600], ...
+                            'CrossoverSlopes',48);
+
+                plugin.Desser = compressor(-42,125,... % tresh, ratio
+                             'AttackTime',3e-3,...
+                             'ReleaseTime',20e-3,...
+                             'MakeUpGainMode','Property');
+                 end
+    end
     
     
 
     methods (Access = protected)
         
         
-
         % esta funcion reemplaza process
         function [y,delays,gains] = stepImpl(p,u)
 
@@ -109,14 +162,35 @@ classdef Doubler < audioPlugin & matlab.System
             end
             
             % Sum to create output
-            y = sum(delayedOut,3);
+            pitch = sum(delayedOut,3) * 0.1; % se reduce la señal a la mitad
+            y = pitch;
             delays = [delays1,delays2] / getSampleRate(p);
             gains  = [gains1,gains2];
+
             %y = u;
             % u = input  -  u es la señal de entrada
+            
+        % -------- proceso mezcla voces ----------
+            p.Wet = step(p.EQ, u); % 2. Aplica EQ
+            p.Wet = step(p.Compressor, p.Wet(:,1:2)); % aplica compresion (:,1:2)) -> canal estereo
+            [band1,band2,band3] = step(p.Crossover, p.Wet(:,1:2)); % crossover obtiene 3 bandas
+            band3 = step(p.Desser, band3); % comprime la banda 3 , deesser
+            p.Wet = (band1 + band2 + band3)*1.85; % suma las bandas 
+            p.Wet = p.Wet + pitch;
+            % usar tecnica de wet dry del paneo por diferencia , usando
+            % relacion radio
+            d = p.Value; 
+            wet = d*p.Wet;
+            dry = (1-d)*u;
+            
+            y = wet + dry ;
+            
+            %y = pitch;
         end
-        
 
+
+
+        
 
 
         % esta funcion reemplaza reset
@@ -126,13 +200,13 @@ classdef Doubler < audioPlugin & matlab.System
 
             pMaxDelaySamps = 192e3 * p.pMaxDelay;
             
-            p.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,...
-                'InterpolationMethod','farrow');
+            p.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,'InterpolationMethod','farrow');
             
             p.Phase1State = 0;
             p.Phase2State = (1 - p.Overlap);
+            reset(p.pShifter);
 
-            p.pRate = (1 - 2^((-5)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
+            p.pRate = (1 - 2^((-3)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
             p.pPhaseStep = p.pRate / getSampleRate(p); % phase step
             p.pFaderGain = 1 / p.Overlap; % gain for overlap fader
 
