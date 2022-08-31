@@ -15,7 +15,6 @@ classdef Doubler < audioPlugin & matlab.System
         Crossover;
         Desser;
         Wet;
-        lockPhase = true;
 
         pRate_1;
         pPhaseStep_1;
@@ -66,7 +65,7 @@ classdef Doubler < audioPlugin & matlab.System
                              'AttackTime',3e-3,...
                              'ReleaseTime',20e-3,...
                              'MakeUpGainMode','Property');
-                         
+
                 plugin.EQ.SampleRate = getSampleRate(plugin);
                 plugin.Compressor.SampleRate = getSampleRate(plugin);
                 plugin.Crossover.SampleRate = getSampleRate(plugin);
@@ -109,7 +108,7 @@ classdef Doubler < audioPlugin & matlab.System
             pstep_1 = p.pPhaseStep_1;
             ovrlp = p.Overlap;
             sd    =  p.pSampsDelay;
-            fgain_1 = p.pFaderGain;
+            fgain = p.pFaderGain;
 
             
             for i = 1:blockSize
@@ -123,8 +122,8 @@ classdef Doubler < audioPlugin & matlab.System
                     delays1_1(i) = sd * ph1;
                     delays2_1(i) = sd * ph2;
 
-                    gains1(i) = cos((1 - (ph1* fgain_1)) * pi/2);
-                    gains2(i) = cos(((ph2 - (1 - ovrlp)) * fgain_1) * pi/2);
+                    gains1(i) = cos((1 - (ph1* fgain)) * pi/2);
+                    gains2(i) = cos(((ph2 - (1 - ovrlp)) * fgain) * pi/2);
                     
                     % delayline1 is active
                 elseif((ph1 > ovrlp) && (ph1 < (1 - ovrlp)))
@@ -143,8 +142,8 @@ classdef Doubler < audioPlugin & matlab.System
                     delays1_1(i) = sd * ph1;
                     delays2_1(i) = sd * ph2;
 
-                    gains1(i) = cos(((ph1 - (1 - ovrlp)) * fgain_1) * pi/2);
-                    gains2(i) = cos((1 - (ph2* fgain_1)) * pi/2);
+                    gains1(i) = cos(((ph1 - (1 - ovrlp)) * fgain) * pi/2);
+                    gains2(i) = cos((1 - (ph2* fgain)) * pi/2);
                     
                     % delayline2 is active
                 elseif((ph2 > ovrlp) && (ph2 < (1 - ovrlp)))
@@ -214,7 +213,7 @@ classdef Doubler < audioPlugin & matlab.System
             p.pSampsDelay = round(p.pMaxDelay * getSampleRate(p));
 
             p.pRate_1 = (1 - 2^((-3)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
-            p.pPhaseStep_1 = p.pRate_1 / getSampleRate(p); % phase step 1
+            p.pPhaseStep_1 = p.pRate_1 / getSampleRate(p) % phase step 1
 
             p.pRate_2 = (1 - 2^((-3)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
             p.pPhaseStep_2 = p.pRate_2 / getSampleRate(p); % phase step 2
