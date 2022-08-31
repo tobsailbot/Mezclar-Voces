@@ -42,11 +42,9 @@ classdef Doubler < audioPlugin & matlab.System
                              'Frequencies',410, ...
                              'QualityFactors',0.66, ...
                              'PeakGains',-2.4, ...
-                             ...
                              'HasHighpassFilter',true,...
                              'HighpassCutoff',95,...
                              'HighpassSlope',10,...
-                             ...
                              'HasHighShelfFilter',true, ...
                              'HighShelfCutoff',8800, ... &8800
                              'HighShelfSlope',0.45, ...
@@ -66,12 +64,31 @@ classdef Doubler < audioPlugin & matlab.System
                              'AttackTime',3e-3,...
                              'ReleaseTime',20e-3,...
                              'MakeUpGainMode','Property');
-                 end
+                         
+                plugin.EQ.SampleRate = getSampleRate(plugin);
+                plugin.Compressor.SampleRate = getSampleRate(plugin);
+                plugin.Crossover.SampleRate = getSampleRate(plugin);
+                plugin.Desser.SampleRate = getSampleRate(plugin);
+            end
+                 
     end
     
     
 
     methods (Access = protected)
+        
+        function setupImpl(obj,~)
+            
+            % Assume longest delay is 0.03ms and max Fs is 192 kHz
+            pMaxDelaySamps = 192e3 * obj.pMaxDelay;
+            
+            obj.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,...
+                'InterpolationMethod','farrow');
+            
+            obj.Phase1State = 0;
+            obj.Phase2State = (1 - obj.Overlap);
+            
+        end
         
         
         % esta funcion reemplaza process
@@ -189,22 +206,14 @@ classdef Doubler < audioPlugin & matlab.System
         end
 
 
-
-        
-
-
         % esta funcion reemplaza reset
         function resetImpl(p)
-            
-            p.pSampsDelay = round(p.pMaxDelay * getSampleRate(p));
-
-            pMaxDelaySamps = 192e3 * p.pMaxDelay;
-            
-            p.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,'InterpolationMethod','farrow');
             
             p.Phase1State = 0;
             p.Phase2State = (1 - p.Overlap);
             reset(p.pShifter);
+            
+            p.pSampsDelay = round(p.pMaxDelay * getSampleRate(p));
 
             p.pRate = (1 - 2^((-3)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
             p.pPhaseStep = p.pRate / getSampleRate(p); % phase step
