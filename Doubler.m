@@ -15,16 +15,20 @@ classdef Doubler < audioPlugin & matlab.System
         Crossover;
         Desser;
         Wet;
+        
+        pSampsDelay;
+        pShifter;
+        pFaderGain;
 
         pRate_1;
         pPhaseStep_1;
         pRate_2;
         pPhaseStep_2;
-        pSampsDelay;
-        pShifter;
-        pFaderGain;
-        Phase1State;
-        Phase2State;
+
+        Phase1State_1;
+        Phase2State_1;
+        Phase1State_2;
+        Phase2State_2;
     end
 
     properties(Constant)
@@ -78,16 +82,19 @@ classdef Doubler < audioPlugin & matlab.System
 
     methods (Access = protected)
         
-        function setupImpl(obj,~)
+        function setupImpl(p,~)
             
             % Assume longest delay is 0.03ms and max Fs is 192 kHz
-            pMaxDelaySamps = 192e3 * obj.pMaxDelay;
+            pMaxDelaySamps = 192e3 * p.pMaxDelay;
             
-            obj.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,...
+            p.pShifter = dsp.VariableFractionalDelay('MaximumDelay',pMaxDelaySamps,...
                 'InterpolationMethod','farrow');
             
-            obj.Phase1State = 0;
-            obj.Phase2State = (1 - obj.Overlap);
+            p.Phase1State_1 = 0;
+            p.Phase2State_1 = (1 - p.Overlap);
+
+            p.Phase1State_2 = 0;
+            p.Phase2State_2 = (1 - p.Overlap);
             
         end
         
@@ -97,93 +104,156 @@ classdef Doubler < audioPlugin & matlab.System
 
             blockSize = size(input,1); % Number of samples in the input
             
-            gains1 = zeros(blockSize,1); % Gain for first delay line
-            gains2 = zeros(blockSize,1); % Gain for second delay line
+            gains1_1 = zeros(blockSize,1); % Gain for first delay line
+            gains2_1 = zeros(blockSize,1); % Gain for second delay line
+
+            gains1_2 = zeros(blockSize,1); % Gain for first delay line
+            gains2_2 = zeros(blockSize,1); % Gain for second delay line
             
             delays1_1 = zeros(blockSize,1); % Delay for first delay line
             delays2_1 = zeros(blockSize,1);
+
+            delays1_2 = zeros(blockSize,1); % Delay for first delay line
+            delays2_2 = zeros(blockSize,1);
             
-            ph1   = p.Phase1State;
-            ph2   = p.Phase2State;
+            ph1_1   = p.Phase1State_1;
+            ph2_1   = p.Phase2State_1;
+            ph1_2   = p.Phase1State_2;
+            ph2_2   = p.Phase2State_2;
+
             pstep_1 = p.pPhaseStep_1;
+            pstep_2 = p.pPhaseStep_2;
             ovrlp = p.Overlap;
             sd    =  p.pSampsDelay;
             fgain = p.pFaderGain;
 
-            
+
             for i = 1:blockSize
                 
-                ph1 = mod((ph1 + pstep_1),1);
-                ph2 = mod((ph2 + pstep_1),1);
+                ph1_1 = mod((ph1_1 + pstep_1),1);
+                ph2_1 = mod((ph2_1 + pstep_1),1);
                 
-                % delayline2 is approaching its end. fade in delayline1
-                if((ph1 < ovrlp) && (ph2 >= (1 - ovrlp)))
-                    
-                    delays1_1(i) = sd * ph1;
-                    delays2_1(i) = sd * ph2;
+                ph1_2 = mod((ph1_2 + pstep_2),1);
+                ph2_2 = mod((ph2_2 + pstep_2),1);
+                
 
-                    gains1(i) = cos((1 - (ph1* fgain)) * pi/2);
-                    gains2(i) = cos(((ph2 - (1 - ovrlp)) * fgain) * pi/2);
+                if((ph1_1 < ovrlp) && (ph2_1 >= (1 - ovrlp)))
                     
-                    % delayline1 is active
-                elseif((ph1 > ovrlp) && (ph1 < (1 - ovrlp)))
-                    
-                    % delayline2 shouldn't move while delayline1 is active
-                    ph2 = 0;
-                    
-                    delays1_1(i) = sd * ph1;
-                    
-                    gains1(i) = 1;
-                    gains2(i) = 0;
-                    
-                    % delayline1 is approaching its end. fade in delayline2
-                elseif((ph1 >= (1 - ovrlp)) && (ph2 < ovrlp))
-                    
-                    delays1_1(i) = sd * ph1;
-                    delays2_1(i) = sd * ph2;
+                    delays1_1(i) = sd * ph1_1;
+                    delays2_1(i) = sd * ph2_1;
 
-                    gains1(i) = cos(((ph1 - (1 - ovrlp)) * fgain) * pi/2);
-                    gains2(i) = cos((1 - (ph2* fgain)) * pi/2);
+                    gains1_1(i) = cos((1 - (ph1_1* fgain)) * pi/2);
+                    gains2_1(i) = cos(((ph2_1 - (1 - ovrlp)) * fgain) * pi/2);
                     
-                    % delayline2 is active
-                elseif((ph2 > ovrlp) && (ph2 < (1 - ovrlp)))
+                elseif((ph1_1 > ovrlp) && (ph1_1 < (1 - ovrlp)))
                     
-                    % delayline1 shouldn't move while delayline2 is active
-                    ph1 = 0;
+                    ph2_1 = 0;
+                    delays1_1(i) = sd * ph1_1;
                     
-                    delays2_1(i) = sd * ph2;
+                    gains1_1(i) = 1;
+                    gains2_1(i) = 0;
                     
-                    gains1(i) = 0;
-                    gains2(i) = 1;
+                elseif((ph1_1 >= (1 - ovrlp)) && (ph2_1 < ovrlp))
+                    
+                    delays1_1(i) = sd * ph1_1;
+                    delays2_1(i) = sd * ph2_1;
+
+                    gains1_1(i) = cos(((ph1_1 - (1 - ovrlp)) * fgain) * pi/2);
+                    gains2_1(i) = cos((1 - (ph2_1* fgain)) * pi/2);
+
+                elseif((ph2_1 > ovrlp) && (ph2_1 < (1 - ovrlp)))
+                    
+                    ph1_1 = 0;
+                    delays2_1(i) = sd * ph2_1;
+                    
+                    gains1_1(i) = 0;
+                    gains2_1(i) = 1;
+                    
+                end
+                
+
+                if((ph1_2 < ovrlp) && (ph2_2 >= (1 - ovrlp)))
+                    
+                    delays1_2(i) = sd * ph1_2;
+                    delays2_2(i) = sd * ph2_2;
+
+                    gains1_2(i) = cos((1 - (ph1_2* fgain)) * pi/2);
+                    gains2_2(i) = cos(((ph2_2 - (1 - ovrlp)) * fgain) * pi/2);
+                    
+                elseif((ph1_2 > ovrlp) && (ph1_2 < (1 - ovrlp)))
+                    
+                    ph2_2 = 0;
+                    delays1_2(i) = sd * ph1_2;
+                    
+                    gains1_2(i) = 1;
+                    gains2_2(i) = 0;
+                    
+                elseif((ph1_2 >= (1 - ovrlp)) && (ph2_2 < ovrlp))
+                    
+                    delays1_2(i) = sd * ph1_2;
+                    delays2_2(i) = sd * ph2_2;
+
+                    gains1_2(i) = cos(((ph1_2 - (1 - ovrlp)) * fgain) * pi/2);
+                    gains2_2(i) = cos((1 - (ph2_2* fgain)) * pi/2);
+                    
+                elseif((ph2_2 > ovrlp) && (ph2_2 < (1 - ovrlp)))
+                    
+                    ph1_2 = 0;
+                    delays2_2(i) = sd * ph2_2;
+                    
+                    gains1_2(i) = 0;
+                    gains2_2(i) = 1;
                     
                 end
             end
+
+
             
-            p.Phase1State = ph1;
-            p.Phase2State = ph2;
+            p.Phase1State_1 = ph1_1;
+            p.Phase2State_1 = ph2_1;
+
+            p.Phase1State_2 = ph1_2;
+            p.Phase2State_2 = ph2_2;
             
-            % Get delayed output
+            % ------- Get delayed output for pitch 1
             dly_1 = zeros(blockSize,1,2);
             dly_1(:,:,1) = delays1_1;
             dly_1(:,:,2) = delays2_1;
             delayedOut_1 = p.pShifter(input,dly_1);
    
             for i = 1:size(input,2)
-                delayedOut_1(:,i,1) = delayedOut_1(:,i,1) .* gains1;
-                delayedOut_1(:,i,2) = delayedOut_1(:,i,2) .* gains2;
+                delayedOut_1(:,i,1) = delayedOut_1(:,i,1) .* gains1_1;
+                delayedOut_1(:,i,2) = delayedOut_1(:,i,2) .* gains2_1;
             end
-            
-            % Sum to create output
-            pitch_1 = sum(delayedOut_1,3) * 1; % se multiplica por la ganancia
-            pitch_left = pitch_1(:,1);
-            pitch_right = pitch_1(:,2);
-            delays = [delays1_1,delays2_1] / getSampleRate(p);
-            gains  = [gains1,gains2];
 
+            % ---Sum to create output for pitch 1
+            pitch_1 = sum(delayedOut_1,3) * 1; % se multiplica por la ganancia
+            pitch_left_1 = pitch_1(:,1);
+            pitch_right_1 = pitch_1(:,2);
+            delays = [delays1_1,delays2_1] / getSampleRate(p);
+            gains  = [gains1_1,gains2_1];
+
+
+            % ------ Get delayed output for pitch 2
+            dly_2 = zeros(blockSize,1,2);
+            dly_2(:,:,1) = delays1_2;
+            dly_2(:,:,2) = delays2_2;
+            delayedOut_2 = p.pShifter(input,dly_2);
+   
+            for i = 1:size(input,2)
+                delayedOut_2(:,i,1) = delayedOut_2(:,i,1) .* gains1_2;
+                delayedOut_2(:,i,2) = delayedOut_2(:,i,2) .* gains2_2;
+            end
+
+            % ---Sum to create output for pitch 2
+            pitch_2 = sum(delayedOut_2,3) * 1; % se multiplica por la ganancia
+            pitch_left_2 = pitch_2(:,1);
+            pitch_right_2 = pitch_2(:,2);
+            delays_2 = [delays1_1,delays2_2] / getSampleRate(p);
+            gains_2  = [gains1_1,gains2_2];
+            
             %y = u;
             % u = input  -  u es la señal de entrada
-
-
 
           % -------- proceso mezcla voces ----------
             p.Wet = step(p.EQ, input); % 2. Aplica EQ
@@ -191,9 +261,11 @@ classdef Doubler < audioPlugin & matlab.System
             [band1,band2,band3] = step(p.Crossover, p.Wet(:,1:2)); % crossover obtiene 3 bandas
             band3 = step(p.Desser, band3); % comprime la banda 3 , deesser
             p.Wet = (band1 + band2 + band3); % suma las bandas del crossover
-            p.Wet = ((2/pi) * atan(p.Wet * 2.6)) * 1.4; % Drive soft clipping
-            total = [pitch_left*0 , pitch_right];
-            p.Wet = p.Wet + total; % agrega el audio pitched
+            p.Wet = ((2/pi) * atan(p.Wet * 2.6)) * 0; % Drive soft clipping
+            pitch_total_1 = [pitch_left_1*0 , pitch_right_1];
+            pitch_total_2 = [pitch_left_2 , pitch_right_2*0];
+            pitch_total = pitch_total_1 + pitch_total_2;
+            p.Wet = p.Wet + pitch_total; % agrega el audio pitched
 
             % usar tecnica de wet dry del paneo por diferencia , usando
             % relacion radio
@@ -201,25 +273,26 @@ classdef Doubler < audioPlugin & matlab.System
             wet = d*p.Wet;
             dry = (1-d)*input;
             
-            y = wet + dry ;
-            %y = pitch_1;
-            %y = pitch;
+            %y = wet + dry ;
+            y = pitch_total;
         end
 
 
         % esta funcion reemplaza reset
         function resetImpl(p)
             
-            p.Phase1State = 0;
-            p.Phase2State = (1 - p.Overlap);
+            p.Phase1State_1 = 0;
+            p.Phase2State_1 = (1 - p.Overlap);
+            p.Phase1State_2 = 0;
+            p.Phase2State_2 = (1 - p.Overlap);
             reset(p.pShifter);
             
             p.pSampsDelay = round(p.pMaxDelay * getSampleRate(p));
 
-            p.pRate_1 = (1 - 2^((-0.2)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
-            p.pPhaseStep_1 = p.pRate_1 / getSampleRate(p) % phase step 1
+            p.pRate_1 = (1 - 2^((-0.3)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
+            p.pPhaseStep_1 = p.pRate_1 / getSampleRate(p); % phase step 1
 
-            p.pRate_2 = (1 - 2^((-3)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
+            p.pRate_2 = (1 - 2^((0.3)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
             p.pPhaseStep_2 = p.pRate_2 / getSampleRate(p); % phase step 2
 
             p.pFaderGain = 1 / p.Overlap; % gain for overlap fader
