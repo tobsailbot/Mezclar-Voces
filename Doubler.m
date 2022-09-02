@@ -174,7 +174,7 @@ classdef Doubler < audioPlugin & matlab.System
             end
             
             % Sum to create output
-            pitch_1 = sum(delayedOut_1,3) * 0.9; % se reduce la señal a la mitad
+            pitch_1 = sum(delayedOut_1,3) * 1; % se multiplica por la ganancia
             pitch_left = pitch_1(:,1);
             pitch_right = pitch_1(:,2);
             delays = [delays1_1,delays2_1] / getSampleRate(p);
