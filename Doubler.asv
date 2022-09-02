@@ -174,9 +174,9 @@ classdef Doubler < audioPlugin & matlab.System
             end
             
             % Sum to create output
-            pitch_1 = sum(delayedOut_1,3) * 0.9; % se reduce la señal a la mitad
+            pitch_1 = sum(delayedOut_1,3) * 0.5; % se reduce la señal a la mitad
             pitch_left = pitch_1(:,1);
-            pitch_right = pitch_1(:,2);
+            pitch_right = pitch_
             delays = [delays1_1,delays2_1] / getSampleRate(p);
             gains  = [gains1,gains2];
 
@@ -192,9 +192,7 @@ classdef Doubler < audioPlugin & matlab.System
             band3 = step(p.Desser, band3); % comprime la banda 3 , deesser
             p.Wet = (band1 + band2 + band3); % suma las bandas del crossover
             p.Wet = ((2/pi) * atan(p.Wet * 2.6)) * 1.4; % Drive soft clipping
-            total = [pitch_left*0 , pitch_right];
-            p.Wet = p.Wet + total; % agrega el audio pitched
-
+            p.Wet = p.Wet + pitch_1(:,1); % agrega el audio pitched
             % usar tecnica de wet dry del paneo por diferencia , usando
             % relacion radio
             d = p.Value; 
@@ -216,7 +214,7 @@ classdef Doubler < audioPlugin & matlab.System
             
             p.pSampsDelay = round(p.pMaxDelay * getSampleRate(p));
 
-            p.pRate_1 = (1 - 2^((-0.2)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
+            p.pRate_1 = (1 - 2^((-3)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
             p.pPhaseStep_1 = p.pRate_1 / getSampleRate(p) % phase step 1
 
             p.pRate_2 = (1 - 2^((-3)/12)) / p.pMaxDelay;  % Valor de pitch shift !!!-----
