@@ -11,6 +11,7 @@ classdef Doubler < audioPlugin & matlab.System
 
     properties (Access = private)
         EQ;
+        EQ_2;
         Compressor;
         Crossover;
         Desser;
@@ -56,8 +57,8 @@ classdef Doubler < audioPlugin & matlab.System
                              'HighShelfSlope',0.45, ...
                              'HighShelfGain',3.6); % 3.2
 
-                plugin.Compressor = compressor(-24,8,... % tresh, ratio
-                             'AttackTime',25e-3,...
+                plugin.Compressor = compressor(-24,12,... % tresh, ratio
+                             'AttackTime',15e-3,...
                              'ReleaseTime',200e-3,...
                              'MakeUpGainMode','Property');
 
@@ -70,8 +71,21 @@ classdef Doubler < audioPlugin & matlab.System
                              'AttackTime',3e-3,...
                              'ReleaseTime',20e-3,...
                              'MakeUpGainMode','Property');
+                plugin.EQ_2 = multibandParametricEQ(...
+                             'NumEQBands',1, ...
+                             'Frequencies',410, ...
+                             'QualityFactors',0.66, ...
+                             'PeakGains',-1, ...
+                             'HasHighpassFilter',true,...
+                             'HighpassCutoff',80,...
+                             'HighpassSlope',10,...
+                             'HasHighShelfFilter',true, ...
+                             'HighShelfCutoff',12000, ... &8800
+                             'HighShelfSlope',0.45, ...
+                             'HighShelfGain',6); % 3.2
 
                 plugin.EQ.SampleRate = getSampleRate(plugin);
+                plugin.EQ_2.SampleRate = getSampleRate(plugin);
                 plugin.Compressor.SampleRate = getSampleRate(plugin);
                 plugin.Crossover.SampleRate = getSampleRate(plugin);
                 plugin.Desser.SampleRate = getSampleRate(plugin);
@@ -229,7 +243,7 @@ classdef Doubler < audioPlugin & matlab.System
             % ---Sum to create output for pitch 1
             pitch_1 = sum(delayedOut_1,3); % se multiplica por la ganancia
             pitch_left_1 = pitch_1(:,1);
-            pitch_right_1 = pitch_1(:,2);
+
             delays = [delays1_1,delays2_1] / getSampleRate(p);
             gains  = [gains1_1,gains2_1];
             
@@ -250,10 +264,8 @@ classdef Doubler < audioPlugin & matlab.System
             end
 
             pitch_2 = sum(delayedOut_2,3); % se multiplica por la ganancia
-            pitch_left_2 = pitch_2(:,1);
             pitch_right_2 = pitch_2(:,2);
-            delays_2 = [delays1_2,delays2_2] / getSampleRate(p);
-            gains_2  = [gains1_2,gains2_2];
+ 
             
         % ---------------------------------------------------------
             
@@ -268,9 +280,10 @@ classdef Doubler < audioPlugin & matlab.System
             p.Wet = (band1 + band2 + band3); % suma las bandas del crossover
             p.Wet = ((2/pi) * atan(p.Wet * 6))*0.6; % Drive soft clipping
             
-            pitch_total = [pitch_left_1 , pitch_right_2] *0.5;
+            pitch_total = [pitch_left_1 , pitch_right_2] *0;
             p.Wet = p.Wet + pitch_total; % agrega el audio pitched
-            
+            p.Wet = step(p.EQ_2, p.Wet(:,1:2)); % aplica ultima ecualizacion EQ_2
+            p.Wet = (p.Wet);
             % usar tecnica de wet dry del paneo por diferencia , usando
             % relacion radio
             d = p.Value; 
